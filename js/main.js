@@ -12,6 +12,77 @@ let tieFighters = []; // Array to store TIE Fighters
 let tieFighterLasers = []; // Array to store TIE Fighter lasers
 let lastTieFighterSpawnTime = 0;
 const TIE_FIGHTER_SPAWN_INTERVAL = 5000; // 5 seconds in milliseconds
+let approachEncountersTriggered = false; // Track if approach encounters have been triggered
+const APPROACH_ENCOUNTER_DISTANCES = [700, 600, 500, 400, 300]; // Distances to trigger encounters
+
+// Sound effects
+const sounds = {
+    explosion: new Audio('sounds/effects/explosion.mp3'),
+    tieFighterBlast: new Audio('sounds/effects/tie-fighter-blast.mp3'),
+    xWingBlast: new Audio('sounds/effects/x-wing-blast.mp3'),
+    deathStarApproach: new Audio('sounds/effects/death-star-approach.mp3'),
+    showdown: new Audio('sounds/music/showdown.mp3')
+};
+
+// Sound manager
+const soundManager = {
+    init() {
+        // Preload all sounds
+        Object.values(sounds).forEach(sound => {
+            sound.load();
+        });
+        
+        // Set volume levels
+        sounds.explosion.volume = 0.8;
+        sounds.tieFighterBlast.volume = 0.1; // Reduced from 0.5 to 0.1
+        sounds.xWingBlast.volume = 0.1; // Reduced from 0.6 to 0.1
+        sounds.deathStarApproach.volume = 0.4;
+        sounds.showdown.volume = 0.3; // Set background music at moderate volume
+        
+        // Don't loop the approach sound - we'll play it once
+        sounds.deathStarApproach.loop = false;
+        
+        // Set the showdown music to loop
+        sounds.showdown.loop = true;
+        
+        // Track last played time for throttling
+        this.lastPlayedTime = {
+            tieFighterBlast: 0,
+            xWingBlast: 0
+        };
+    },
+    
+    play(soundName) {
+        if (sounds[soundName]) {
+            const currentTime = Date.now();
+            
+            // Apply throttling for blast sounds (500ms)
+            if (['tieFighterBlast', 'xWingBlast'].includes(soundName)) {
+                if (currentTime - this.lastPlayedTime[soundName] < 500) {
+                    // Skip playing if sound was played less than 500ms ago
+                    return;
+                }
+                this.lastPlayedTime[soundName] = currentTime;
+                
+                // Create a clone for overlapping sounds
+                const soundClone = sounds[soundName].cloneNode();
+                soundClone.volume = sounds[soundName].volume;
+                soundClone.play();
+            } else {
+                // For non-overlapping sounds, just play the original
+                sounds[soundName].currentTime = 0;
+                sounds[soundName].play();
+            }
+        }
+    },
+    
+    stop(soundName) {
+        if (sounds[soundName]) {
+            sounds[soundName].pause();
+            sounds[soundName].currentTime = 0;
+        }
+    }
+};
 
 // Game state
 const GAME_STATE = {
@@ -72,6 +143,9 @@ function init() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setClearColor(0x000000);
     document.body.appendChild(renderer.domElement);
+    
+    // Initialize sound manager
+    soundManager.init();
     
     // Create starfield
     createStarfield();
@@ -137,6 +211,12 @@ function showStartScreen() {
 function startGame() {
     currentGameState = GAME_STATE.PLAY;
     
+    // Play death star approach sound
+    soundManager.play('deathStarApproach');
+    
+    // Play background music
+    soundManager.play('showdown');
+    
     // Remove start screen
     const startScreen = document.getElementById('start-screen');
     if (startScreen) {
@@ -194,6 +274,12 @@ function resetGame() {
     // Reset TIE Fighter spawn time
     lastTieFighterSpawnTime = Date.now();
     
+    // Reset approach encounters
+    approachEncountersTriggered = false;
+    // Reset encounter distances
+    APPROACH_ENCOUNTER_DISTANCES.length = 0;
+    APPROACH_ENCOUNTER_DISTANCES.push(700, 600, 500, 400, 300);
+    
     // Remove any game over or victory messages
     const gameOverMessage = document.getElementById('game-over-message');
     if (gameOverMessage) {
@@ -209,6 +295,10 @@ function resetGame() {
     if (restartButton) {
         restartButton.remove();
     }
+    
+    // Reset sounds - stop any playing sounds
+    soundManager.stop('explosion');
+    // We don't need to restart the approach sound here since it's played once in startGame
 }
 
 // Create starfield background
@@ -381,11 +471,15 @@ function loadXWingModel() {
         [-1.4, -1.4, 0.2] // Bottom-left
     ];
     
+    // Create references to the lasers for later updating
+    const wingTipLasers = [];
+    
     positions.forEach(pos => {
         const laser = new THREE.Mesh(laserGeometry, laserMaterial);
         laser.position.set(pos[0], pos[1], pos[2]);
         laser.rotation.x = Math.PI / 2;
         shipGroup.add(laser);
+        wingTipLasers.push(laser);
     });
     
     // Add engines (small blue cylinders)
@@ -607,55 +701,73 @@ function updateCameraPosition() {
 function fireLasers() {
     if (laserCooldown > 0) return; // Still in cooldown
     
-    // Create a laser beam (using a group for better visual effect)
-    const laserGroup = new THREE.Group();
+    // Play X-Wing laser sound
+    soundManager.play('xWingBlast');
     
-    // Main laser beam
-    const laserGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.8, 8);
-    const laserMaterial = new THREE.MeshBasicMaterial({ 
-        color: 0xffff00,
-        transparent: true,
-        opacity: 0.9
-    });
-    const laserBeam = new THREE.Mesh(laserGeometry, laserMaterial);
-    laserGroup.add(laserBeam);
-    
-    // Add glow effect (slightly larger, more transparent cylinder)
-    const glowGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.8, 8);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffff99,
-        transparent: true,
-        opacity: 0.5
-    });
-    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    laserGroup.add(glow);
-    
-    // Position the laser at the nose of the ship
-    const nosePosition = xwing.position.clone();
+    // Get the forward direction of the ship
     const forwardDirection = new THREE.Vector3(0, 0, 1);
     forwardDirection.applyQuaternion(xwing.quaternion);
     
-    // Move the laser to the nose of the ship (adjusted for the X-Wing model)
-    nosePosition.add(forwardDirection.clone().multiplyScalar(0.3));
-    laserGroup.position.copy(nosePosition);
+    // Calculate wing tip positions based on current wing positions
+    // This ensures lasers fire from the correct positions as wings move
+    const closingFactor = speed / MAX_SPEED;
+    const verticalOffset = 0.8 * (1 - closingFactor);
     
-    // Rotate the laser to match the ship's orientation
-    laserGroup.quaternion.copy(xwing.quaternion);
-    laserGroup.rotateX(Math.PI / 2); // Align with forward direction
+    // Wing tip positions relative to the ship center, adjusted for current wing positions
+    const wingTips = [
+        new THREE.Vector3(1.4, verticalOffset + 0.6, 0.2),   // Top-right
+        new THREE.Vector3(-1.4, verticalOffset + 0.6, 0.2),  // Top-left
+        new THREE.Vector3(1.4, -verticalOffset - 0.6, 0.2),  // Bottom-right
+        new THREE.Vector3(-1.4, -verticalOffset - 0.6, 0.2)  // Bottom-left
+    ];
     
-    // Add to scene and lasers array
-    scene.add(laserGroup);
-    lasers.push({
-        mesh: laserGroup,
-        direction: forwardDirection,
-        lifetime: LASER_LIFETIME
+    // Create a laser from each wing tip
+    wingTips.forEach(wingTipLocal => {
+        // Create a laser beam (using a group for better visual effect)
+        const laserGroup = new THREE.Group();
+        
+        // Main laser beam
+        const laserGeometry = new THREE.CylinderGeometry(0.01, 0.01, 0.6, 8); // Thinner lasers
+        const laserMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xff0000, // Red lasers like in the movies
+            transparent: true,
+            opacity: 0.9
+        });
+        const laserBeam = new THREE.Mesh(laserGeometry, laserMaterial);
+        laserGroup.add(laserBeam);
+        
+        // Add glow effect (slightly larger, more transparent cylinder)
+        const glowGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.6, 8);
+        const glowMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff3333, // Lighter red for glow
+            transparent: true,
+            opacity: 0.5
+        });
+        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+        laserGroup.add(glow);
+        
+        // Convert local wing tip position to world position
+        const wingTipWorld = wingTipLocal.clone();
+        wingTipWorld.applyMatrix4(xwing.matrix);
+        
+        // Position the laser at the wing tip
+        laserGroup.position.copy(wingTipWorld);
+        
+        // Rotate the laser to match the ship's orientation
+        laserGroup.quaternion.copy(xwing.quaternion);
+        laserGroup.rotateX(Math.PI / 2); // Align with forward direction
+        
+        // Add to scene and lasers array
+        scene.add(laserGroup);
+        lasers.push({
+            mesh: laserGroup,
+            direction: forwardDirection,
+            lifetime: LASER_LIFETIME
+        });
     });
     
     // Set cooldown
     laserCooldown = LASER_COOLDOWN;
-    
-    // Play sound (would be added in a later phase)
-    console.log('Pew pew!');
 }
 
 // Update lasers
@@ -748,6 +860,15 @@ function createHitEffect(position) {
 function destroyDeathStar() {
     deathStarDestroyed = true;
     currentGameState = GAME_STATE.VICTORY;
+    
+    // Play explosion sound
+    soundManager.play('explosion');
+    
+    // Stop the death star approach sound
+    soundManager.stop('deathStarApproach');
+    
+    // Stop the background music
+    soundManager.stop('showdown');
     
     // Create explosion particles
     createExplosion(deathStar.position.clone(), 500, 30);
@@ -1047,16 +1168,42 @@ function animate() {
     if (xwing && isLoaded) {
         // S-foil movement is now tied to speed
         if (xwing.children.length >= 7) { // Make sure wings exist
-            const wingAngle = Math.min(0.3, speed * 10); // Wings open more as speed increases
+            // Invert the wing angle calculation - wings close as speed increases
+            // At max speed, wings are fully closed (horizontal)
+            // At min speed, wings are fully open in X formation
+            const closingFactor = speed / MAX_SPEED; // 0 to 1 based on current speed
+            const wingAngle = Math.PI / 4 * (1 - closingFactor); // From π/4 (45°) to 0 as speed increases
             
-            // Top-right wing
-            xwing.children[3].rotation.z = Math.PI / 4 + wingAngle;
-            // Top-left wing
-            xwing.children[4].rotation.z = -Math.PI / 4 - wingAngle;
-            // Bottom-right wing
-            xwing.children[5].rotation.z = -Math.PI / 4 - wingAngle;
-            // Bottom-left wing
-            xwing.children[6].rotation.z = Math.PI / 4 + wingAngle;
+            // Calculate vertical position adjustment - wings move toward center line as they close
+            const verticalOffset = 0.8 * (1 - closingFactor); // From 0.8 to 0 as speed increases
+            
+            // Top-right wing - from 45° angle to 0° (horizontal) and move down
+            xwing.children[3].rotation.z = wingAngle;
+            xwing.children[3].position.set(0.8, verticalOffset, 0.2);
+            
+            // Top-left wing - from -45° angle to 0° (horizontal) and move down
+            xwing.children[4].rotation.z = -wingAngle;
+            xwing.children[4].position.set(-0.8, verticalOffset, 0.2);
+            
+            // Bottom-right wing - from -45° angle to 0° (horizontal) and move up
+            xwing.children[5].rotation.z = -wingAngle;
+            xwing.children[5].position.set(0.8, -verticalOffset, 0.2);
+            
+            // Bottom-left wing - from 45° angle to 0° (horizontal) and move up
+            xwing.children[6].rotation.z = wingAngle;
+            xwing.children[6].position.set(-0.8, -verticalOffset, 0.2);
+            
+            // Update wing-tip lasers to follow the wings (they are children 7-10)
+            if (xwing.children.length >= 11) {
+                // Top-right laser
+                xwing.children[7].position.set(1.4, verticalOffset + 0.6, 0.2);
+                // Top-left laser
+                xwing.children[8].position.set(-1.4, verticalOffset + 0.6, 0.2);
+                // Bottom-right laser
+                xwing.children[9].position.set(1.4, -verticalOffset - 0.6, 0.2);
+                // Bottom-left laser
+                xwing.children[10].position.set(-1.4, -verticalOffset - 0.6, 0.2);
+            }
         }
         
         // Animate engine lights (pulsing effect tied to speed)
@@ -1106,6 +1253,77 @@ function updateDistanceIndicator() {
         } else {
             distanceIndicator.style.color = '#2ecc71'; // Green for far
         }
+        
+        // Check for approach encounters
+        if (currentGameState === GAME_STATE.PLAY && !approachEncountersTriggered) {
+            checkApproachEncounters(distance);
+        }
+    }
+}
+
+// Check for approach encounters based on distance to Death Star
+function checkApproachEncounters(currentDistance) {
+    // Check each encounter distance
+    for (let i = 0; i < APPROACH_ENCOUNTER_DISTANCES.length; i++) {
+        const encounterDistance = APPROACH_ENCOUNTER_DISTANCES[i];
+        
+        // If we're close to an encounter point (within 10 units)
+        if (Math.abs(currentDistance - encounterDistance) < 10) {
+            // Spawn a group of TIE Fighters for this encounter
+            spawnApproachEncounter(encounterDistance, i);
+            
+            // Remove this encounter so it doesn't trigger again
+            APPROACH_ENCOUNTER_DISTANCES.splice(i, 1);
+            i--; // Adjust index after removal
+            
+            // If no more encounters, mark as triggered
+            if (APPROACH_ENCOUNTER_DISTANCES.length === 0) {
+                approachEncountersTriggered = true;
+            }
+            
+            break; // Only trigger one encounter at a time
+        }
+    }
+}
+
+// Spawn a group of TIE Fighters for an approach encounter
+function spawnApproachEncounter(distance, encounterIndex) {
+    // Number of TIE Fighters increases as you get closer to the Death Star
+    const numTieFighters = Math.min(2 + encounterIndex, 4); // 2 to 4 TIE Fighters
+    
+    // Check if we can spawn more TIE Fighters (respect max limit of 10)
+    if (tieFighters.length >= 10) {
+        console.log("Maximum TIE Fighter limit reached, not spawning more");
+        return;
+    }
+    
+    // Only spawn as many as we can without exceeding the limit
+    const actualNumToSpawn = Math.min(numTieFighters, 10 - tieFighters.length);
+    
+    console.log(`Spawning approach encounter at distance ${distance} with ${actualNumToSpawn} TIE Fighters`);
+    
+    // Spawn TIE Fighters from the Death Star
+    for (let i = 0; i < actualNumToSpawn; i++) {
+        // Calculate a random position near the Death Star
+        const randomAngle = Math.random() * Math.PI * 2;
+        const randomRadius = 30 + Math.random() * 10; // 30-40 units from Death Star center
+        
+        // Position relative to Death Star
+        const x = deathStar.position.x + Math.cos(randomAngle) * randomRadius;
+        const y = deathStar.position.y + (Math.random() - 0.5) * 20; // Random height
+        const z = deathStar.position.z + Math.sin(randomAngle) * randomRadius;
+        
+        // Create the TIE Fighter
+        const tieFighter = createTieFighter(new THREE.Vector3(x, y, z));
+        
+        // Make the TIE Fighter face toward the player initially
+        tieFighter.lookAt(xwing.position);
+        
+        // Set a higher speed for this TIE Fighter to approach more aggressively
+        const tieFighterData = tieFighters[tieFighters.length - 1];
+        tieFighterData.speed = 0.3 + Math.random() * 0.15; // Faster speed (0.3-0.45 instead of 0.15-0.25)
+        tieFighterData.behaviorState = 'pursue'; // Force pursuit behavior initially
+        tieFighterData.behaviorTimer = 100 + Math.random() * 50; // Longer initial pursuit
     }
 }
 
@@ -1115,29 +1333,32 @@ function createTieFighter(position) {
     const tieFighter = new THREE.Group();
     
     // Create the cockpit (sphere)
-    const cockpitGeometry = new THREE.SphereGeometry(0.4, 16, 16);
+    const cockpitGeometry = new THREE.SphereGeometry(0.5, 16, 16); // Increased from 0.4 to 0.5
     const cockpitMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
     const cockpit = new THREE.Mesh(cockpitGeometry, cockpitMaterial);
     tieFighter.add(cockpit);
     
     // Create the wing panels (hexagonal)
-    const wingGeometry = new THREE.BoxGeometry(1.2, 1.2, 0.1);
+    const wingGeometry = new THREE.BoxGeometry(1.5, 1.5, 0.1); // Increased from 1.2 to 1.5
     const wingMaterial = new THREE.MeshPhongMaterial({ color: 0x666666 });
     
     // Left wing
     const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
-    leftWing.position.set(-0.8, 0, 0);
+    leftWing.position.set(-1.0, 0, 0); // Adjusted from -0.8 to -1.0 to account for larger wings
     leftWing.rotation.y = Math.PI / 2;
     tieFighter.add(leftWing);
     
     // Right wing
     const rightWing = new THREE.Mesh(wingGeometry, wingMaterial);
-    rightWing.position.set(0.8, 0, 0);
+    rightWing.position.set(1.0, 0, 0); // Adjusted from 0.8 to 1.0 to account for larger wings
     rightWing.rotation.y = Math.PI / 2;
     tieFighter.add(rightWing);
     
     // Position the TIE Fighter
     tieFighter.position.copy(position);
+    
+    // Scale the entire TIE Fighter to make it 20% larger
+    tieFighter.scale.set(1.2, 1.2, 1.2);
     
     // Add to scene and TIE Fighters array
     scene.add(tieFighter);
@@ -1159,20 +1380,25 @@ function createTieFighter(position) {
 function spawnTieFighters() {
     const currentTime = Date.now();
     
-    // Check if it's time to spawn new TIE Fighters
-    if (currentTime - lastTieFighterSpawnTime > TIE_FIGHTER_SPAWN_INTERVAL) {
-        // Spawn 3 TIE Fighters
-        for (let i = 0; i < 3; i++) {
-            // Spawn a TIE Fighter at a random position near the Death Star
-            const randomAngle = Math.random() * Math.PI * 2;
-            const randomRadius = 30 + Math.random() * 20; // 30-50 units from Death Star center
-            
-            const x = deathStar.position.x + Math.cos(randomAngle) * randomRadius;
-            const y = deathStar.position.y + (Math.random() - 0.5) * 20; // Random height
-            const z = deathStar.position.z + Math.sin(randomAngle) * randomRadius;
-            
-            createTieFighter(new THREE.Vector3(x, y, z));
-        }
+    // Check if it's time to spawn new TIE Fighters and we haven't reached the maximum
+    if (currentTime - lastTieFighterSpawnTime > TIE_FIGHTER_SPAWN_INTERVAL && tieFighters.length < 10) {
+        // Spawn 1 TIE Fighter instead of 3
+        // Spawn a TIE Fighter at a random position near the Death Star
+        const randomAngle = Math.random() * Math.PI * 2;
+        const randomRadius = 30 + Math.random() * 20; // 30-50 units from Death Star center
+        
+        const x = deathStar.position.x + Math.cos(randomAngle) * randomRadius;
+        const y = deathStar.position.y + (Math.random() - 0.5) * 20; // Random height
+        const z = deathStar.position.z + Math.sin(randomAngle) * randomRadius;
+        
+        const tieFighter = createTieFighter(new THREE.Vector3(x, y, z));
+        
+        // Make the TIE Fighter face toward the player initially
+        tieFighter.lookAt(xwing.position);
+        
+        // Set a higher speed for this TIE Fighter to approach more aggressively
+        const tieFighterData = tieFighters[tieFighters.length - 1];
+        tieFighterData.speed = 0.25 + Math.random() * 0.15; // Faster speed (0.25-0.4 instead of 0.15-0.25)
         
         // Update last spawn time
         lastTieFighterSpawnTime = currentTime;
@@ -1181,6 +1407,9 @@ function spawnTieFighters() {
 
 // TIE Fighter fires a laser
 function fireTieFighterLaser(tieFighter) {
+    // Play TIE fighter laser sound
+    soundManager.play('tieFighterBlast');
+    
     // Create a laser beam
     const laserGroup = new THREE.Group();
     
@@ -1305,9 +1534,9 @@ function updateTieFighters() {
         
         if (tieFighter.behaviorTimer <= 0) {
             // Time to change behavior
-            if (tieFighter.behaviorState === 'pursue' && distanceToPlayer < 30) {
+            if (tieFighter.behaviorState === 'pursue' && distanceToPlayer < 25) { // Reduced from 30 to 25
                 // If close enough, switch to strafing or evading
-                tieFighter.behaviorState = Math.random() > 0.5 ? 'strafe' : 'evade';
+                tieFighter.behaviorState = Math.random() > 0.7 ? 'strafe' : 'evade'; // 30% chance of strafe, 70% evade
                 
                 if (tieFighter.behaviorState === 'strafe') {
                     // Set up strafing run - fly past the player
@@ -1327,12 +1556,12 @@ function updateTieFighters() {
                 
                 // Set timer for this behavior (shorter for evasive maneuvers)
                 tieFighter.behaviorTimer = tieFighter.behaviorState === 'evade' ? 
-                    30 + Math.random() * 30 : 
-                    60 + Math.random() * 60;
+                    20 + Math.random() * 20 : // Reduced from 30+30 to 20+20
+                    40 + Math.random() * 40;  // Reduced from 60+60 to 40+40
             } else {
                 // Return to pursuit behavior
                 tieFighter.behaviorState = 'pursue';
-                tieFighter.behaviorTimer = 100 + Math.random() * 100;
+                tieFighter.behaviorTimer = 60 + Math.random() * 60; // Reduced from 100+100 to 60+60
             }
         }
         
@@ -1340,21 +1569,21 @@ function updateTieFighters() {
         let moveDirection = new THREE.Vector3();
         
         if (tieFighter.behaviorState === 'pursue') {
-            // Standard pursuit behavior
-            if (distanceToPlayer > 25) {
-                // Move toward player if too far
+            // More aggressive pursuit behavior
+            if (distanceToPlayer > 20) { // Reduced from 25 to 20
+                // Move directly toward player if too far
                 moveDirection = directionToPlayer;
             } else {
-                // Circle around at optimal distance
+                // Circle around at optimal distance but more aggressively
                 const circleDirection = new THREE.Vector3().crossVectors(
                     directionToPlayer,
                     new THREE.Vector3(0, 1, 0)
                 ).normalize();
                 
-                // Mix of circling and maintaining distance
+                // Mix of circling and maintaining distance (more direct approach)
                 moveDirection.addVectors(
-                    circleDirection.multiplyScalar(0.8),
-                    directionToPlayer.multiplyScalar(distanceToPlayer > 30 ? 0.2 : -0.2)
+                    circleDirection.multiplyScalar(0.6), // Reduced from 0.8 to 0.6
+                    directionToPlayer.multiplyScalar(distanceToPlayer > 25 ? 0.4 : -0.2) // Increased from 0.2 to 0.4
                 ).normalize();
             }
         } else if (tieFighter.behaviorState === 'strafe') {
@@ -1374,8 +1603,8 @@ function updateTieFighters() {
         // Always face toward movement direction (with slight tracking of player)
         const lookDirection = new THREE.Vector3();
         lookDirection.addVectors(
-            moveDirection.multiplyScalar(0.8),
-            directionToPlayer.multiplyScalar(0.2)
+            moveDirection.multiplyScalar(0.7), // Reduced from 0.8 to 0.7
+            directionToPlayer.multiplyScalar(0.3)  // Increased from 0.2 to 0.3
         ).normalize();
         
         // Create a look target
@@ -1383,10 +1612,10 @@ function updateTieFighters() {
         tieFighter.mesh.lookAt(lookTarget);
         
         // Check if it's time to fire - only fire when not evading and within firing range
-        // Simplified firing check that doesn't depend on exact facing direction
-        if (tieFighter.behaviorState !== 'evade' && 
-            distanceToPlayer < 50 && 
-            currentTime - tieFighter.lastFireTime > tieFighter.fireInterval) {
+        // More aggressive firing behavior
+        if ((tieFighter.behaviorState !== 'evade' || Math.random() < 0.1) && // 10% chance to fire even when evading
+            distanceToPlayer < 60 && // Increased from 50 to 60
+            currentTime - tieFighter.lastFireTime > tieFighter.fireInterval * 0.8) { // 20% faster firing
             fireTieFighterLaser(tieFighter);
             tieFighter.lastFireTime = currentTime;
         }
@@ -1425,7 +1654,7 @@ function checkLaserHitTieFighter(laser) {
         const distance = laser.mesh.position.distanceTo(tieFighter.mesh.position);
         
         // TIE Fighter hit box radius
-        const hitBoxRadius = 0.6;
+        const hitBoxRadius = 1.0; // Increased from 0.6 to 1.0
         
         if (distance < hitBoxRadius) {
             // Hit detected!
@@ -1519,6 +1748,12 @@ function createTieFighterExplosion(position) {
 function gameOver() {
     // Set game over state
     currentGameState = GAME_STATE.GAME_OVER;
+    
+    // Stop the death star approach sound
+    soundManager.stop('deathStarApproach');
+    
+    // Stop the background music
+    soundManager.stop('showdown');
     
     // Display game over message
     const gameOverMessage = document.createElement('div');
