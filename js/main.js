@@ -331,7 +331,7 @@ function createDeathStar() {
     deathStar = new THREE.Group();
     
     // Main sphere
-    const radius = 20;
+    const radius = 40; // Changed from 20 to 40 to make the Death Star twice as big
     const deathStarGeometry = new THREE.SphereGeometry(radius, 32, 32);
     const deathStarMaterial = new THREE.MeshPhongMaterial({
         color: 0x8a8a8a,
@@ -821,8 +821,8 @@ function checkLaserHit(laser) {
     // Calculate distance from laser to Death Star center
     const distance = laser.mesh.position.distanceTo(deathStar.position);
     
-    // Death Star radius is 20 units
-    if (distance < 20) {
+    // Death Star radius is 40 units (doubled from 20)
+    if (distance < 40) {
         // Hit detected!
         deathStarHP -= 10; // Each hit does 10 damage
         
@@ -1306,7 +1306,7 @@ function spawnApproachEncounter(distance, encounterIndex) {
     for (let i = 0; i < actualNumToSpawn; i++) {
         // Calculate a random position near the Death Star
         const randomAngle = Math.random() * Math.PI * 2;
-        const randomRadius = 30 + Math.random() * 10; // 30-40 units from Death Star center
+        const randomRadius = 60 + Math.random() * 40; // 60-100 units from Death Star center (doubled from 30-50)
         
         // Position relative to Death Star
         const x = deathStar.position.x + Math.cos(randomAngle) * randomRadius;
@@ -1385,7 +1385,7 @@ function spawnTieFighters() {
         // Spawn 1 TIE Fighter instead of 3
         // Spawn a TIE Fighter at a random position near the Death Star
         const randomAngle = Math.random() * Math.PI * 2;
-        const randomRadius = 30 + Math.random() * 20; // 30-50 units from Death Star center
+        const randomRadius = 60 + Math.random() * 40; // 60-100 units from Death Star center (doubled from 30-50)
         
         const x = deathStar.position.x + Math.cos(randomAngle) * randomRadius;
         const y = deathStar.position.y + (Math.random() - 0.5) * 20; // Random height
