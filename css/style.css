@@ -1,0 +1,439 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: #000;
+    font-family: 'Arial', sans-serif;
+}
+
+canvas {
+    display: block;
+}
+
+#info {
+    position: absolute;
+    top: 10px;
+    width: 100%;
+    text-align: center;
+    color: white;
+    font-size: 16px;
+    pointer-events: none;
+    z-index: 100;
+}
+
+#loading {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    font-size: 24px;
+    z-index: 1000;
+    transition: opacity 0.5s;
+}
+
+#loading.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#controls-info {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    color: #fff;
+    z-index: 100;
+}
+
+.controls-panel {
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #3498db;
+}
+
+.controls-panel h3 {
+    margin-top: 0;
+    color: #3498db;
+}
+
+.controls-panel p {
+    margin: 5px 0;
+}
+
+#speed-panel {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    color: #fff;
+    z-index: 100;
+}
+
+.speed-indicator {
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #3498db;
+    width: 200px;
+}
+
+.speed-label {
+    font-size: 14px;
+    margin-bottom: 5px;
+    color: #3498db;
+}
+
+.speed-bar-container {
+    width: 100%;
+    height: 10px;
+    background-color: #333;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.speed-bar {
+    height: 100%;
+    width: 0%;
+    background-color: #2ecc71;
+    transition: width 0.2s, background-color 0.2s;
+}
+
+#distance-panel {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    color: #fff;
+    z-index: 100;
+}
+
+.distance-indicator {
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #3498db;
+    width: 200px;
+    text-align: center;
+}
+
+.distance-label {
+    font-size: 14px;
+    margin-bottom: 5px;
+    color: #3498db;
+}
+
+#distance-value {
+    font-size: 24px;
+    font-weight: bold;
+    color: #2ecc71;
+    transition: color 0.3s;
+}
+
+/* HP Bar for Death Star */
+#hp-panel {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    color: #fff;
+    z-index: 100;
+}
+
+.hp-indicator {
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #e74c3c;
+    width: 250px;
+}
+
+.hp-label {
+    font-size: 14px;
+    margin-bottom: 5px;
+    color: #e74c3c;
+    text-align: center;
+}
+
+.hp-bar-container {
+    width: 100%;
+    height: 15px;
+    background-color: #333;
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 5px;
+}
+
+.hp-bar {
+    height: 100%;
+    width: 100%;
+    background-color: #2ecc71;
+    transition: width 0.3s, background-color 0.3s;
+}
+
+#hp-value {
+    font-size: 18px;
+    font-weight: bold;
+    color: #fff;
+    text-align: center;
+}
+
+/* Victory Container and Elements */
+#victory-container {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    border-radius: 10px;
+    border: 3px solid #f1c40f;
+    text-align: center;
+    z-index: 200;
+    width: 80%;
+    max-width: 600px;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+#victory-message {
+    position: relative;
+    color: #f1c40f;
+    font-size: 48px;
+    font-weight: bold;
+    font-family: 'Orbitron', sans-serif;
+    margin-bottom: 30px;
+    text-align: center;
+    line-height: 1.2;
+    transform: none;
+    top: auto;
+    left: auto;
+    width: 100%;
+    border: none;
+    background-color: transparent;
+    padding: 0;
+}
+
+#restart-button {
+    position: relative;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem;
+    color: #ffffff;
+    background-color: rgba(0, 0, 0, 0.7);
+    border: 2px solid #3498db;
+    border-radius: 5px;
+    padding: 15px 30px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    width: 80%;
+    max-width: 300px;
+    text-transform: uppercase;
+    transform: none;
+    top: auto;
+    left: auto;
+}
+
+#restart-button:hover {
+    background-color: rgba(52, 152, 219, 0.3);
+    box-shadow: 0 0 15px #3498db;
+}
+
+.hidden {
+    display: none;
+}
+
+#xwing-hp-panel {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 100;
+    color: white;
+    font-family: 'Arial', sans-serif;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.7);
+}
+
+#xwing-hp-panel .hp-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+#xwing-hp-panel .hp-label {
+    font-size: 14px;
+    margin-bottom: 5px;
+}
+
+#xwing-hp-panel .hp-bar-container {
+    width: 200px;
+    height: 15px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 5px;
+}
+
+#xwing-hp-panel .hp-bar {
+    height: 100%;
+    width: 100%;
+    background-color: #2ecc71;
+    transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+#xwing-hp-panel #xwing-hp-value {
+    font-size: 12px;
+}
+
+#combined-hp-panel {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    color: #fff;
+    z-index: 100;
+    font-family: 'Arial', sans-serif;
+}
+
+.combined-hp-indicator {
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #3498db;
+    width: 250px;
+}
+
+.hp-section {
+    margin-bottom: 10px;
+}
+
+.hp-section:last-child {
+    margin-bottom: 0;
+}
+
+.hp-label {
+    font-size: 14px;
+    margin-bottom: 5px;
+    text-align: center;
+}
+
+.xwing-label {
+    color: #2ecc71; /* Green for X-Wing */
+}
+
+.deathstar-label {
+    color: #e74c3c; /* Red for Death Star */
+}
+
+.hp-bar-container {
+    width: 100%;
+    height: 15px;
+    background-color: #333;
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 5px;
+}
+
+.hp-bar {
+    height: 100%;
+    width: 100%;
+    transition: width 0.3s, background-color 0.3s;
+}
+
+.xwing-hp-bar {
+    background-color: #2ecc71; /* Green for X-Wing */
+}
+
+.deathstar-hp-bar {
+    background-color: #e74c3c; /* Red for Death Star */
+}
+
+#xwing-hp-value, #hp-value {
+    font-size: 14px;
+    font-weight: bold;
+    color: #fff;
+    text-align: center;
+}
+
+/* Remove the old separate panels */
+#hp-panel, #xwing-hp-panel {
+    display: none;
+}
+
+#game-over-message {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 4rem;
+    color: #ff3333;
+    text-shadow: 0 0 10px #ff0000;
+    z-index: 1000;
+    text-align: center;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* Start Screen Styles */
+#start-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.start-content {
+    text-align: center;
+    color: #fff;
+    max-width: 600px;
+    padding: 30px;
+    background-color: rgba(0, 0, 0, 0.7);
+    border-radius: 10px;
+    border: 2px solid #3498db;
+    box-shadow: 0 0 20px rgba(52, 152, 219, 0.5);
+}
+
+.start-content h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.5rem;
+    color: #f1c40f;
+    margin-bottom: 20px;
+    text-shadow: 0 0 10px rgba(241, 196, 15, 0.5);
+}
+
+.start-content p {
+    font-size: 1.2rem;
+    margin-bottom: 30px;
+    line-height: 1.6;
+}
+
+#start-button {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem;
+    color: #ffffff;
+    background-color: rgba(0, 0, 0, 0.7);
+    border: 2px solid #3498db;
+    border-radius: 5px;
+    padding: 10px 30px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#start-button:hover {
+    background-color: rgba(52, 152, 219, 0.3);
+    box-shadow: 0 0 15px #3498db;
+    transform: scale(1.05);
+} 
