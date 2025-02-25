@@ -13,7 +13,7 @@ let tieFighterLasers = []; // Array to store TIE Fighter lasers
 let lastTieFighterSpawnTime = 0;
 const TIE_FIGHTER_SPAWN_INTERVAL = 5000; // 5 seconds in milliseconds
 let approachEncountersTriggered = false; // Track if approach encounters have been triggered
-const APPROACH_ENCOUNTER_DISTANCES = [700, 600, 500, 400, 300]; // Distances to trigger encounters
+const APPROACH_ENCOUNTER_DISTANCES = [500, 400, 300, 200, 100]; // Distances to trigger encounters (adjusted for closer Death Star)
 
 // Sound effects
 const sounds = {
@@ -99,7 +99,7 @@ let xwingHP = XWING_MAX_HP;
 let xwingHPIndicator;
 
 // Death Star properties
-const DEATH_STAR_MAX_HP = 100;
+const DEATH_STAR_MAX_HP = 500; // Increased from 100 to 500 (5x more HP)
 let deathStarHP = DEATH_STAR_MAX_HP;
 let deathStarDestroyed = false;
 let hpIndicator;
@@ -278,7 +278,7 @@ function resetGame() {
     approachEncountersTriggered = false;
     // Reset encounter distances
     APPROACH_ENCOUNTER_DISTANCES.length = 0;
-    APPROACH_ENCOUNTER_DISTANCES.push(700, 600, 500, 400, 300);
+    APPROACH_ENCOUNTER_DISTANCES.push(500, 400, 300, 200, 100);
     
     // Remove any game over or victory messages
     const gameOverMessage = document.getElementById('game-over-message');
@@ -396,7 +396,7 @@ function createDeathStar() {
     }
     
     // Position the Death Star in the distance
-    deathStar.position.set(0, 0, 800); // Changed from 100 to 800
+    deathStar.position.set(0, 0, 600); // Changed from 800 to 600 to bring it closer
     
     // Add to scene
     scene.add(deathStar);
